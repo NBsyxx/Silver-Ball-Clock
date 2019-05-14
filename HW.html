@@ -1,0 +1,209 @@
+<script src=lib2.js></script>
+
+<body bgcolor=#C0C0C0 text=white link=white alink=white vlink=white>
+<center>
+<canvas id='canvas1' width=500 height=500></canvas>
+</center>
+</body>
+
+
+<!! VERTEX SHADER >
+
+<script id='my_vertex_shader' type='x-shader/x-vertex'>
+   attribute vec3 aPos;
+   varying   vec3 vPos;
+   void main() {
+      gl_Position = vec4(aPos, 1.);
+      vPos = aPos;
+   }
+</script>
+
+
+<!! FRAGMENT SHADER: THIS IS WHERE YOU WILL DO YOUR WORK >
+
+<script id='my_fragment_shader' type='x-shader/x-fragment'>
+uniform float uTime;
+varying vec3 vPos;
+const int NSHAPES = 4;
+const int NLIGHTS = 2;
+float fl = 3.5;
+mat3 L[NLIGHTS];
+vec4 S[NSHAPES];
+mat4 M[NSHAPES];
+vec3 skyColor = vec3(.12,.12,.12);
+
+
+bool shadow(vec3 P, vec3 L){
+   for (int i = 1; i < NSHAPES; i++){ 
+      if (ray_sphere(P,L,S[i]) > 0.001){
+         return true;
+      }
+    return false;
+   }
+}
+
+
+vec3 phong(vec3 P, vec3 W, vec3 N, mat4 Mj ,vec4 Sj) {
+     vec3 color;
+     color = Mj[0].rgb;
+     for (int i = 0 ; i < NLIGHTS ; i++) {
+        if (!shadow(P, L[i][0])) {
+        color += L[i][1] * Mj[1].rgb * max(0., dot(L[i][0], N));
+        color += L[i][1] * Mj[2].rgb *
+         pow(max(0., dot(reflect(-L[i][0],N), -W)), Mj[2].a);
+       }
+     }
+     return color;
+}
+
+
+vec3 reflection(float alpha, vec3 P, vec3 R, vec3 N) {
+   vec3 color;
+   if (alpha > .0) {
+       float t = 1000.;
+       vec4 Sj;
+       mat4 Mj;
+       for (int j = 0; j < NSHAPES; j++) {
+           float _t = ray_sphere(P, R, S[j]);
+           if (_t > .001 && _t < t) {
+                t = _t;
+                Sj = S[j];
+                Mj = M[j];
+           }
+       }
+       if (t < 1000.) color = mix(color, phong(P, N,  N,Mj, Sj), alpha);
+   }
+   return color;
+}
+
+
+float z_axis_generator(){
+   float z_axis = 0.1;
+   if (z_axis <= -1.7 ){
+     z_axis = 1.4*uTime + 0.5*1.0*uTime*uTime;}
+   else{if(z_axis >= 0.0){
+     z_axis = -0.5*1.0*uTime*uTime;}}
+   return z_axis;}
+
+
+void main() {
+   S[0] = vec4(-0.1, -0.3, 0., .3);
+   S[1] = vec4(-0.1+0.7*sin(.4*uTime), 0.2*sin(0.1*uTime), 0.7*cos(.4*uTime), .15);
+   S[2] = vec4(.0,.0,-701.7,700.0);
+   S[3] = vec4(0.4+ 0.1*sin(0.2*uTime),.55+0.1*cos(0.2*uTime),1.55*sin(uTime),.15);
+
+
+   M[0][0] = vec4(.1,.1,.1,.0);
+   M[0][1] = vec4(.1,.1,.1,.0);
+   M[0][2] = vec4(.5,.5,.5,10.);
+
+   M[1][0] = vec4(.12,0.12,.2,.0);
+   M[1][1] = vec4(.1,.1,.06,.0);
+   M[1][2] = vec4(.5,.5,.5,10.);
+   
+   M[2][0] = vec4(.75,0.75,.75,.0);
+   M[2][1] = vec4(.03,.03,.03,.0);
+   M[2][2] = vec4(.01,.01,.01,10.);
+   
+   M[3][0] = vec4(.12,0.12,.3,.0);
+   M[3][1] = vec4(.29,.12,.12,.0);
+   M[3][2] = vec4(.5,.5,.5,10.);
+
+   L[0][0] = normalize(vec3(2.0*sin(.05*uTime),.3,3.0));
+   L[0][1] = vec3(1.,1.,.5);
+
+   L[1][0] = normalize(vec3(-1.,-1.,-2.));
+   L[1][1] = vec3(.05,.05,.15);
+
+   ///////////////////////////////
+
+   vec3 V = vec3(0., 0., fl);
+   vec3 W = normalize(vec3(vPos.x, vPos.y, -fl));
+
+   vec3 color = skyColor;
+
+   float t = 1000.;
+
+   vec4 Sj;
+   mat4 Mj;
+
+   for (int j = 0 ; j < NSHAPES ; j++) {
+      float _t = ray_sphere(V, W, S[j]);
+      if (_t >= 0. && _t < t) {
+         t = _t;
+    Sj = S[j];
+    Mj = M[j];
+      }
+   }
+
+   if (t < 1000.) {
+      vec3 P = V + t * W;
+      vec3 N = normalize(P - Sj.xyz);
+      color = phong(P, W, N, Mj ,Sj); 
+   
+      for (int i = 0; i < NLIGHTS; i ++)
+       color += reflection(.5, P, reflect(-L[i][0],N), N);
+   }
+
+   gl_FragColor = vec4(sqrt(color), 1.0);
+}
+
+
+
+</script>
+
+
+<!! CREATE A PROPERLY DESCRIPTIVE TITLE BELOW >
+
+<script id='my_title' type='text/html'>
+<font face=helvetica color="black">&nbsp;"Silver Ball Clock"<br>
+</script>
+
+
+<!! GENERAL HTML SUPPORT >
+   
+<script>
+var vs = my_vertex_shader.innerHTML,
+    fs = my_fragment_shader.innerHTML;
+    fs = fs.substring(1, fs.length);
+
+document.body.innerHTML = [''
+   ,'<table><tr>'
+   ,'<td><font size=8 color=#b0b0b0>' + my_title.innerHTML + '</td>'
+   ,'</tr></table>'
+   ,'<TABLE cellspacing=0 cellpadding=0><TR>'
+   ,'<td width=50></td><td><font color=red size=5><div id=errorMessage>&nbsp;</div></font></td>'
+   ,'</TR><TR>'
+   ,'<table cellspacing=10>'
+   ,'<tr>'
+   ,'</td><td valign=top>' + document.body.innerHTML + '</td>'
+   ,'<td valign=top><font size=2 color=red><div id=errorMarker>&nbsp;</div></font></td>'
+   ,'<td valign=top>'
+   //,'<textArea id=textArea spellcheck=false '
+   //,'style="font:15px helvetica;outline-width:0;border-style:none;resize:none;overflow:scroll;"'
+   //,'></textArea>'
+   ,'</tr></table>'
+   ,'</TR></TABLE>'
+   ].join('');
+
+// var i, text = fs.split('\n'), cols = 0;
+// for (i = 0 ; i < text.length ; i++)
+//    cols = Math.max(cols, text[i].length);
+
+// textArea.rows = 28;
+// textArea.cols = cols;
+// textArea.value = fs;
+// textArea.style.backgroundColor = '#C0C0C0';
+// textArea.style.color = 'black';
+// textArea.onkeyup = function() { canvas1.setShaders(vs, this.value); }
+
+var startTime = Date.now();
+
+function animate(gl) {
+   let time = (Date.now() - startTime) / 1000;
+   setUniform('1f', 'uTime', time);
+}
+
+gl_start(canvas1, vs, fs);
+</script>
+
